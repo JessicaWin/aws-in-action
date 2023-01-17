@@ -1,0 +1,67 @@
+service: event-bridge-trigger-lambda
+
+custom:
+  bucketNamePrefix: "bucketName"
+
+provider:
+  name: aws
+  runtime: java8
+  memorySize: 512
+  timeout: 900
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+  stackName: ${self:service}
+  region: ${opt:region, 'ap-southeast-1'}
+  stage: ${opt:stage, 'develop'}
+  versionFunctions: false
+
+resources:
+  Resources:
+    SourceEventBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub com.jessica.${self:provider.stage}-source-event-bucket
+        NotificationConfiguration:
+          EventBridgeConfiguration:
+            EventBridgeEnabled: true
+    LambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub "${self:provider.stage}_LambdaRole"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/CloudWatchFullAccess
+package:
+  artifact: target/event-bridge-trigger-lambda.jar
+
+functions:
+  S3PutObjectHandler:
+    name: ${self:provider.stage}-S3EventHandler
+    handler: com.jessica.aws.lambda.S3EventHandler
+    role: !GetAtt LambdaRole.Arn
+    maximumRetryAttempts: 0
+    description: s3 event handler
+    events:
+      - eventBridge:
+          pattern:
+            source:
+              - aws.s3
+            detail-type:
+              - Object Created
+              - Object Deleted
+            detail:
+              bucket:
+                name:
+                  - !Sub com.jessica.${self:provider.stage}-source-event-bucket
+              object:
+                key:
+                  - prefix: "event/"

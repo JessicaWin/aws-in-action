@@ -1,0 +1,78 @@
+service: event-bridge-trigger-lambda
+
+custom:
+  bucketNamePrefix: "bucketName"
+
+provider:
+  name: aws
+  runtime: java8
+  memorySize: 512
+  timeout: 900
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+  stackName: ${self:service}
+  region: ${opt:region, 'ap-southeast-1'}
+  stage: ${opt:stage, 'develop'}
+  versionFunctions: false
+
+resources:
+  Resources:
+    SourceEventBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: com.jessica.${self:provider.stage}-source-event-bucket
+        NotificationConfiguration:
+          EventBridgeConfiguration:
+            EventBridgeEnabled: true
+    LambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:provider.stage}_LambdaRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/CloudWatchFullAccess
+    S3EventRule:
+      Type: AWS::Events::Rule
+      Properties:
+        Description: event rule for s3 event
+        EventPattern:
+          source:
+            - aws.s3
+          detail-type:
+            - Object Created
+            - Object Deleted
+          detail:
+            bucket:
+              name:
+                - com.jessica.${self:provider.stage}-source-event-bucket
+        Name: s3-event
+        State: ENABLED
+        Targets:
+          - Arn: !GetAtt S3EventHandlerLambdaFunction.Arn
+            Id: s3-event-handler
+    LambdaInvokePermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !GetAtt S3EventHandlerLambdaFunction.Arn
+        Action: lambda:InvokeFunction
+        Principal: events.amazonaws.com
+        SourceArn: !GetAtt S3EventRule.Arn
+package:
+  artifact: target/event-bridge-trigger-lambda.jar
+
+functions:
+  S3EventHandler:
+    name: ${self:provider.stage}-S3EventHandler
+    handler: com.jessica.aws.lambda.S3EventHandler
+    role: !GetAtt LambdaRole.Arn
+    maximumRetryAttempts: 0
+    description: s3 event handler
