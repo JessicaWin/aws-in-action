@@ -1,0 +1,54 @@
+service: aurora-to-redshift-redshift
+
+custom:
+  bucketNamePrefix: "bucketName"
+
+provider:
+  name: aws
+  region: ${opt:region, "ap-southeast-1"}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+
+resources:
+  Parameters:
+    ServiceName:
+      Type: String
+      Default: aurora-to-redshift
+
+  Resources:
+    ClusterSubnetGroup:
+      Type: "AWS::Redshift::ClusterSubnetGroup"
+      Properties:
+        Description: Private Cluster Subnet Group
+        SubnetIds:
+          Fn::Split:
+            - ","
+            - Fn::ImportValue: !Sub ${ServiceName}-vpc-PrivateSubnets
+        Tags:
+          - Key: Name
+            Value: private-subnet
+    Cluster:
+      Type: "AWS::Redshift::Cluster"
+      Properties:
+        ClusterIdentifier: test-data-sync-redshift
+        ClusterSubnetGroupName: !Ref ClusterSubnetGroup
+        VpcSecurityGroupIds:
+          - Fn::ImportValue: !Sub ${ServiceName}-vpc-PrivateRedshiftSecurityGroup
+        DBName: dev
+        MasterUsername: admin
+        MasterUserPassword: Redshift_admin_2022
+        NodeType: dc2.large
+        ClusterType: single-node
+  Outputs:
+    RedshiftEndpoint:
+      Description: "Redshift endpoint"
+      Value: !GetAtt Cluster.Endpoint.Address
+      Export:
+        Name: !Sub "${self:provider.stackName}-RedshiftEndpoint"
+    RedshiftPort:
+      Description: "Redshift port"
+      Value: !GetAtt Cluster.Endpoint.Port
+      Export:
+        Name: !Sub "${self:provider.stackName}-RedshiftPort"

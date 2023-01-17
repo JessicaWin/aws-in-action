@@ -1,0 +1,73 @@
+service: aurora-to-redshift-dms
+
+custom:
+  bucketNamePrefix: "bucketName"
+
+provider:
+  name: aws
+  region: ${opt:region, "ap-southeast-1"}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+
+resources:
+  Parameters:
+    ServiceName:
+      Type: String
+      Default: aurora-to-redshift
+
+  Resources:
+    ReplicationSubnetGroup:
+      Type: "AWS::DMS::ReplicationSubnetGroup"
+      Properties:
+        ReplicationSubnetGroupDescription: instance to sync data from aurora to redshift
+        ReplicationSubnetGroupIdentifier: aurora-to-redshift-instance
+        SubnetIds:
+          Fn::Split:
+            - ","
+            - Fn::ImportValue: !Sub ${ServiceName}-vpc-PrivateSubnets
+    ReplicationInstance:
+      Type: "AWS::DMS::ReplicationInstance"
+      Properties:
+        ReplicationInstanceIdentifier: aurora-to-redshift-instance
+        ReplicationInstanceClass: dms.t2.small
+        ReplicationSubnetGroupIdentifier: !Ref ReplicationSubnetGroup
+        PubliclyAccessible: false
+        VpcSecurityGroupIds:
+          - Fn::ImportValue: !Sub ${ServiceName}-vpc-PrivateDMSInstanceSecurityGroup
+    AuroraSourceEndpoint:
+      Type: "AWS::DMS::Endpoint"
+      Properties:
+        EndpointIdentifier: aurora
+        EndpointType: source
+        ServerName:
+          Fn::ImportValue: !Sub ${ServiceName}-aurora-AuroraEndpoint
+        Port:
+          Fn::ImportValue: !Sub ${ServiceName}-aurora-AuroraPort
+        Username: admin
+        Password: aurora_admin_2022
+        EngineName: aurora
+    RedshiftTargetEndpoint:
+      Type: "AWS::DMS::Endpoint"
+      Properties:
+        EndpointIdentifier: redshift
+        EndpointType: target
+        ServerName:
+          Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftEndpoint
+        Port:
+          Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftPort
+        DatabaseName: dev
+        Username: admin
+        Password: Redshift_admin_2022
+        EngineName: redshift
+    ReplicationTask:
+      Type: "AWS::DMS::ReplicationTask"
+      Properties:
+        ReplicationTaskIdentifier: aurora-to-redshift-task
+        MigrationType: full-load-and-cdc
+        ReplicationInstanceArn: !Ref ReplicationInstance
+        SourceEndpointArn: !Ref AuroraSourceEndpoint
+        TableMappings: '{ "rules": [ { "rule-type": "selection", "rule-id": "1", "rule-name": "1", "object-locator": { "schema-name": "dev", "table-name": "%" }, "rule-action": "include" } ] }'
+        TargetEndpointArn: !Ref RedshiftTargetEndpoint
+        ReplicationTaskSettings: '{ "FullLoadSettings": {"TargetTablePrepMode": "DO_NOTHING"}}'

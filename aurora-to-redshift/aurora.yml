@@ -1,0 +1,83 @@
+service: aurora-to-redshift-aurora
+
+custom:
+  bucketNamePrefix: "bucketName"
+
+provider:
+  name: aws
+  region: ${opt:region, "ap-southeast-1"}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+
+resources:
+  Parameters:
+    ServiceName:
+      Type: String
+      Default: aurora-to-redshift
+
+  Resources:
+    DBClusterParameterGroup:
+      Type: "AWS::RDS::DBClusterParameterGroup"
+      Properties:
+        DBClusterParameterGroupName: cluster-aurora-mysql8-with-binlog
+        Description: DB Cluster Parameter Group with aurora-mysql8.0 engine, and binlog enabled
+        Family: aurora-mysql8.0
+        Parameters:
+          binlog_format: "ROW"
+          binlog_row_image: "Full"
+          binlog_checksum: "NONE"
+    DBParameterGroup:
+      Type: "AWS::RDS::DBParameterGroup"
+      Properties:
+        DBParameterGroupName: instance-mysql8
+        Description: DB Instance Parameter Group
+        Family: aurora-mysql8.0
+    PrivateDBSubnetGroup:
+      Type: "AWS::RDS::DBSubnetGroup"
+      Properties:
+        DBSubnetGroupName: private-subnet
+        DBSubnetGroupDescription: "private subnet"
+        SubnetIds:
+          Fn::Split:
+            - ","
+            - Fn::ImportValue: !Sub "${ServiceName}-vpc-PrivateSubnets"
+    RDSCluster:
+      Type: "AWS::RDS::DBCluster"
+      Properties:
+        DBClusterIdentifier: test-data-sync-aurora
+        DBClusterParameterGroupName:
+          Ref: DBClusterParameterGroup
+        DBSubnetGroupName:
+          Ref: PrivateDBSubnetGroup
+        VpcSecurityGroupIds:
+          - Fn::ImportValue: !Sub "${ServiceName}-vpc-PrivateAuroraSecurityGroup"
+        Engine: aurora-mysql
+        EngineVersion: 8.0.mysql_aurora.3.02.2
+        DatabaseName: dev
+        MasterUserPassword: aurora_admin_2022
+        MasterUsername: admin
+    RDSDBInstance:
+      Type: "AWS::RDS::DBInstance"
+      Properties:
+        DBClusterIdentifier:
+          Ref: RDSCluster
+        DBInstanceIdentifier: test-data-sync-aurora-instance
+        DBInstanceClass: db.t3.medium
+        DBParameterGroupName:
+          Ref: DBParameterGroup
+        DBSubnetGroupName:
+          Ref: PrivateDBSubnetGroup
+        Engine: aurora-mysql
+  Outputs:
+    AuroraEndpoint:
+      Description: "Aurora endpoint"
+      Value: !GetAtt RDSCluster.Endpoint.Address
+      Export:
+        Name: !Sub "${self:provider.stackName}-AuroraEndpoint"
+    AuroraPort:
+      Description: "Aurora port"
+      Value: !GetAtt RDSCluster.Endpoint.Port
+      Export:
+        Name: !Sub "${self:provider.stackName}-AuroraPort"
