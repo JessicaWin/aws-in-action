@@ -1,0 +1,199 @@
+service: dynamodb-to-redshift-glue-streaming
+
+custom:
+  bucketNamePrefix: "jessica"
+
+provider:
+  name: aws
+  region: ${opt:region, "ap-southeast-1"}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+
+resources:
+  Parameters:
+    ServiceName:
+      Type: String
+      Default: dynamodb-to-redshift
+    GlueBucketName:
+      Type: String
+      Default: com.${self:custom.bucketNamePrefix}.glue-streaming-temp-bucket
+
+  Resources:
+    KinesisDataStream:
+      Type: AWS::Kinesis::Stream
+      Properties:
+        Name: dynamodb-to-redshift-kinesis
+        RetentionPeriodHours: 24
+        ShardCount: 1
+    TestTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: TestSyncToRedshiftWithKinesis
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        KinesisStreamSpecification:
+          StreamArn: !GetAtt KinesisDataStream.Arn
+    KinesisToRedshiftGlueJobRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: KinesisToRedshiftGlueJobRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - glue.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/AmazonRedshiftFullAccess
+          - arn:aws:iam::aws:policy/AmazonKinesisFullAccess
+          - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+    GlueRedshiftConnection:
+      Type: AWS::Glue::Connection
+      Properties:
+        CatalogId: !Sub "${aws:accountId}"
+        ConnectionInput:
+          Name: ${self:service}-redshift-connection
+          ConnectionType: JDBC
+          MatchCriteria: []
+          PhysicalConnectionRequirements:
+            SecurityGroupIdList:
+              - Fn::ImportValue: !Sub ${ServiceName}-vpc-GlueSelfRefringSecurityGroup
+            SubnetId:
+              Fn::Select:
+                - 1
+                - Fn::Split:
+                    - ","
+                    - Fn::ImportValue: !Sub "${ServiceName}-vpc-PrivateSubnets"
+          ConnectionProperties:
+            JDBC_CONNECTION_URL:
+              Fn::Join:
+                - ""
+                - - "jdbc:redshift://"
+                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftEndpoint
+                  - ":"
+                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftPort
+                  - "/dev"
+            JDBC_ENFORCE_SSL: false
+            USERNAME: admin
+            PASSWORD: Redshift_admin_2022
+    GlueTempBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub ${GlueBucketName}
+    StreamCrawlerRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: StreamCrawlerRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "glue.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+          - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+          - arn:aws:iam::aws:policy/AmazonRedshiftFullAccess
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+    RedshiftDatabase:
+      Type: AWS::Glue::Database
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseInput:
+          Name: "redshift-database-stream"
+    RedshiftCrawler:
+      Type: AWS::Glue::Crawler
+      Properties:
+        Name: "redshift-crawler-stream"
+        Configuration:
+        Role: !GetAtt StreamCrawlerRole.Arn
+        DatabaseName: !Ref RedshiftDatabase
+        Targets:
+          JdbcTargets:
+            - ConnectionName: !Ref GlueRedshiftConnection
+              Path: dev/public/test_kinesis_sync_to_redshift
+        SchemaChangePolicy:
+          UpdateBehavior: "UPDATE_IN_DATABASE"
+          DeleteBehavior: "LOG"
+    GlueStreamingInsertOnlyCatalogJob:
+      Type: AWS::Glue::Job
+      Properties:
+        Name: dynamodb-to-redshift-glue-streaming-insert-only-catalog-job
+        Role: !GetAtt KinesisToRedshiftGlueJobRole.Arn
+        Command:
+          Name: gluestreaming
+          ScriptLocation: !Sub "s3://${GlueBucketName}/script/dynamodb-to-redshift-insert-catalog.py"
+          PythonVersion: 3
+        DefaultArguments:
+          --TempDir: !Sub "s3://${GlueBucketName}/tmp/dynamodb-to-redshift/insert-catalog/"
+          --src_kinesis_data_stream_arn: !GetAtt KinesisDataStream.Arn
+          --des_glue_database_name: !Ref RedshiftDatabase
+          --des_glue_table_name: dev_public_test_kinesis_sync_to_redshift
+        WorkerType: G.025X
+        NumberOfWorkers: 2
+        GlueVersion: "3.0"
+        Connections:
+          Connections:
+            - !Ref GlueRedshiftConnection
+    GlueStreamingInsertOnlyJDBCJob:
+      Type: AWS::Glue::Job
+      Properties:
+        Name: dynamodb-to-redshift-glue-streaming-insert-only-jdbc-job
+        Role: !GetAtt KinesisToRedshiftGlueJobRole.Arn
+        Command:
+          Name: gluestreaming
+          ScriptLocation: !Sub "s3://${GlueBucketName}/script/dynamodb-to-redshift-insert-jdbc.py"
+          PythonVersion: 3
+        DefaultArguments:
+          --TempDir: !Sub "s3://${GlueBucketName}/tmp/dynamodb-to-redshift/insert-jdbc/"
+          --src_kinesis_data_stream_arn: !GetAtt KinesisDataStream.Arn
+          --dst_redshift_database_name: dev
+          --dst_redshift_schema_name: public
+          --dst_redshift_table_name: test_kinesis_sync_to_redshift
+          --redshift_connection_name: !Ref GlueRedshiftConnection
+        WorkerType: G.025X
+        NumberOfWorkers: 2
+        GlueVersion: "3.0"
+        Connections:
+          Connections:
+            - !Ref GlueRedshiftConnection
+    GlueStreamingUpsertJob:
+      Type: AWS::Glue::Job
+      Properties:
+        Name: dynamodb-to-redshift-glue-streaming-upsert-job
+        Role: !GetAtt KinesisToRedshiftGlueJobRole.Arn
+        Command:
+          Name: gluestreaming
+          ScriptLocation: !Sub "s3://${GlueBucketName}/script/dynamodb-to-redshift-upsert.py"
+          PythonVersion: 3
+        DefaultArguments:
+          --TempDir: !Sub "s3://${GlueBucketName}/tmp/dynamodb-to-redshift/upsert/"
+          --src_kinesis_data_stream_arn: !GetAtt KinesisDataStream.Arn
+          --dst_redshift_database_name: dev
+          --dst_redshift_schema_name: public
+          --dst_redshift_table_name: test_kinesis_sync_to_redshift
+          --redshift_connection_name: !Ref GlueRedshiftConnection
+        WorkerType: G.025X
+        NumberOfWorkers: 2
+        GlueVersion: "3.0"
+        Connections:
+          Connections:
+            - !Ref GlueRedshiftConnection

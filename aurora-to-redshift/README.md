@@ -17,7 +17,7 @@ update vpc.xml resources:Parameters:MyIP to your own ip address
 update vpc.xml custom:bucketNamePrefix to your bucketNamePrefix
 
 ```
-sls deploy -v -c vpc.yml
+sls deploy -c vpc.yml
 ```
 
 # deploy aurora
@@ -25,7 +25,7 @@ sls deploy -v -c vpc.yml
 update aurora.xml custom:bucketNamePrefix to your bucketNamePrefix
 
 ```
-sls deploy -v -c aurora.yml
+sls deploy -c aurora.yml
 ```
 
 # deploy redshift
@@ -33,13 +33,13 @@ sls deploy -v -c aurora.yml
 update redshift.xml custom:bucketNamePrefix to your bucketNamePrefix
 
 ```
-sls deploy -v -c redshift.yml
+sls deploy -c redshift.yml
 ```
 
 # deploy dms
 
 ```
-sls deploy -v -c dms.yml
+sls deploy -c dms.yml
 ```
 
 # insert data to aurora

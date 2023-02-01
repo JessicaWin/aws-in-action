@@ -1,0 +1,170 @@
+service: dynamodb-to-redshift-glue-etl
+
+custom:
+  bucketNamePrefix: "jessica"
+
+provider:
+  name: aws
+  region: ${opt:region, "ap-southeast-1"}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+
+resources:
+  Parameters:
+    DynamodbTableName:
+      Type: String
+      Default: "TestSyncToRedshift"
+    ServiceName:
+      Type: String
+      Default: dynamodb-to-redshift
+    GlueBucketName:
+      Type: String
+      Default: com.${self:custom.bucketNamePrefix}.glue-etl-temp-bucket
+
+  Resources:
+    TestTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: !Sub ${DynamodbTableName}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+    CrawlerRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: CrawlerRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - "glue.amazonaws.com"
+              Action:
+                - "sts:AssumeRole"
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+          - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+          - arn:aws:iam::aws:policy/AmazonRedshiftFullAccess
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+    DynamodbDatabase:
+      Type: AWS::Glue::Database
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseInput:
+          Name: "dynamodb-database"
+    DynamodbCrawler:
+      Type: AWS::Glue::Crawler
+      Properties:
+        Name: "dynamodb-crawler"
+        Configuration:
+        Role: !GetAtt CrawlerRole.Arn
+        DatabaseName: !Ref DynamodbDatabase
+        Targets:
+          DynamoDBTargets:
+            - Path: !Sub ${DynamodbTableName}
+        SchemaChangePolicy:
+          UpdateBehavior: "UPDATE_IN_DATABASE"
+          DeleteBehavior: "LOG"
+        Schedule:
+          ScheduleExpression: cron(0/10 * * * ? *) # run every 10 minutes
+    GlueRedshiftConnection:
+      Type: AWS::Glue::Connection
+      Properties:
+        CatalogId: !Sub "${aws:accountId}"
+        ConnectionInput:
+          Name: ${self:service}-redshift-connection
+          ConnectionType: JDBC
+          MatchCriteria: []
+          PhysicalConnectionRequirements:
+            SecurityGroupIdList:
+              - Fn::ImportValue: !Sub ${ServiceName}-vpc-GlueSelfRefringSecurityGroup
+            SubnetId:
+              Fn::Select:
+                - 1
+                - Fn::Split:
+                    - ","
+                    - Fn::ImportValue: !Sub "${ServiceName}-vpc-PrivateSubnets"
+          ConnectionProperties:
+            JDBC_CONNECTION_URL:
+              Fn::Join:
+                - ""
+                - - "jdbc:redshift://"
+                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftEndpoint
+                  - ":"
+                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftPort
+                  - "/dev"
+            JDBC_ENFORCE_SSL: false
+            USERNAME: admin
+            PASSWORD: Redshift_admin_2022
+    RedshiftDatabase:
+      Type: AWS::Glue::Database
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseInput:
+          Name: "redshift-database"
+    RedshiftCrawler:
+      Type: AWS::Glue::Crawler
+      Properties:
+        Name: "redshift-crawler"
+        Configuration:
+        Role: !GetAtt CrawlerRole.Arn
+        DatabaseName: !Ref RedshiftDatabase
+        Targets:
+          JdbcTargets:
+            - ConnectionName: !Ref GlueRedshiftConnection
+              Path: dev/public/test_sync_to_redshift
+        SchemaChangePolicy:
+          UpdateBehavior: "UPDATE_IN_DATABASE"
+          DeleteBehavior: "LOG"
+    RedshiftGlueJobRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: RedshiftGlueJobRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - glue.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+          - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+          - arn:aws:iam::aws:policy/AmazonRedshiftFullAccess
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+    GlueTempBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub ${GlueBucketName}
+
+    GlueJob:
+      Type: AWS::Glue::Job
+      Properties:
+        Name: dynamodb-to-redshift-glue-etl-job
+        Role: !GetAtt RedshiftGlueJobRole.Arn
+        Command:
+          Name: glueetl
+          ScriptLocation: !Sub "s3://${GlueBucketName}/script/dynamodb-to-redshift.py"
+          PythonVersion: 3
+        DefaultArguments:
+          --TempDir: !Sub "s3://${GlueBucketName}/tmp/dynamodb-to-redshift/"
+        WorkerType: G.1X
+        NumberOfWorkers: 2
+        GlueVersion: "3.0"
+        Connections:
+          Connections:
+            - !Ref GlueRedshiftConnection
