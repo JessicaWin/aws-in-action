@@ -115,3 +115,31 @@ CREATE TABLE "public"."test_kinesis_sync_to_redshift"(pk varchar(200) NOT NULL, 
 3. run dynamodb-to-redshift-glue-streaming-insert-only-catalog-job, insert some data to dynamodb table with aws web console, after some time, you can check data in redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client), this job will insert newly added data to redshift table. Stop the job after confirm data sync is success.
 4. run dynamodb-to-redshift-glue-streaming-insert-only-jdbc-job,insert some data to dynamodb table with aws web console, after some time, you can check data in redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client), this job will insert newly added data to redshift table. Stop the job after confirm data sync is success.
 5. run dynamodb-to-redshift-glue-streaming-upsert-jdbc-job, insert some data to dynamodb table with aws web console, and update some existing data, after some time, you can check data in redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client), this job will insert newly added data to redshift table, and also update existing data. Stop the job after confirm data sync is success.
+
+# deploy kinesis
+
+## architecture
+
+![Architercure](kinesis/dynamodb-to-redshift-kinesis.png)
+
+## tips
+
+1. Dynamodb has no date data type, in redshift, date type: timestamp without time zone is in [YYYY-MM-DD HH:mm:ss.SSS] format, so for dynamodb column, please format with [YYYY-MM-DD HH:mm:ss.SSS]. If you dynamodb date column is use some other format, need to refomat to [YYYY-MM-DD HH:mm:ss.SSS] in the transform lambda.
+2. [Kinesis data firehose](https://docs.aws.amazon.com/firehose/latest/dev/create-destination.html#create-destination-redshift) is integrate with redshift with [copy command](https://docs.aws.amazon.com/redshift/latest/dg/r_COPY.html), so can introduce duplicate data if the data in dynamodb can be update, so only fit for cases where dynamodb data will never update.
+
+## deploy command
+
+```
+sls deploy -c kinesis.yml
+```
+
+## test glue streaming job
+
+1. create redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client)
+
+```
+CREATE TABLE "public"."test_kinesis_sync_to_redshift"(pk varchar(200) NOT NULL, sk varchar(200) NOT NULL, value integer, updated_at timestamp without time zone, primary key(pk, sk));
+
+```
+
+2. insert some data to dynamodb table with aws web console, after some time, you can check data in redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client), newly added data will sync to redshift table.

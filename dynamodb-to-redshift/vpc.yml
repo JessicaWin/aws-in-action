@@ -139,6 +139,24 @@ resources:
         Tags:
           - Key: Name
             Value: !Sub "VPC_${VpcName}_PrivateRedshiftSecurityGroup"
+    # redshift security group
+    PublicRedshiftSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow access from inside vpc and Kinesis Data Firehose CIDR block
+        VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 5439
+            ToPort: 5439
+            CidrIp: 10.10.0.0/24
+          - IpProtocol: tcp
+            FromPort: 5439
+            ToPort: 5439
+            CidrIp: 13.228.64.192/27
+        Tags:
+          - Key: Name
+            Value: !Sub "VPC_${VpcName}_PublicRedshiftSecurityGroup"
     GlueRedshiftConnectionSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -265,6 +283,11 @@ resources:
       Value: !Ref PrivateRedshiftSecurityGroup
       Export:
         Name: !Sub "${self:provider.stackName}-PrivateRedshiftSecurityGroup"
+    PublicRedshiftSecurityGroup:
+      Description: "The id of the RedshiftSecurityGroup"
+      Value: !Ref PublicRedshiftSecurityGroup
+      Export:
+        Name: !Sub "${self:provider.stackName}-PublicRedshiftSecurityGroup"
     GlueRedshiftConnectionSecurityGroup:
       Description: "The id of the self referring security group"
       Value: !Ref GlueRedshiftConnectionSecurityGroup

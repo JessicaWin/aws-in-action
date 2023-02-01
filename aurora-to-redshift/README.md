@@ -9,7 +9,11 @@
 
 # create deploy bucket
 
-create a bucket with name 'com.${bucketNamePrefix}.deploy-bucket', bucketNamePrefix can be any value, you decide
+replac the ${bucketNamePrefix} to any value for ParameterValue=${bucketNamePrefix} in below command, bucketNamePrefix can be any value, you decide, eg. ParameterValue=jessica
+
+```
+aws cloudformation create-stack --stack-name deploy-bucket-setup --template-body file://./deploy-bucket.yml --parameters ParameterKey=bucketNamePrefix,ParameterValue=${bucketNamePrefix} --region ap-southeast-1
+```
 
 # deploy vpc
 

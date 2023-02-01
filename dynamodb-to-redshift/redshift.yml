@@ -18,7 +18,7 @@ resources:
       Default: dynamodb-to-redshift
 
   Resources:
-    ClusterSubnetGroup:
+    PrivateClusterSubnetGroup:
       Type: "AWS::Redshift::ClusterSubnetGroup"
       Properties:
         Description: Private Cluster Subnet Group
@@ -29,7 +29,7 @@ resources:
         Tags:
           - Key: Name
             Value: private-subnet
-    Cluster:
+    PrivateCluster:
       Type: "AWS::Redshift::Cluster"
       Properties:
         ClusterIdentifier: test-data-sync-redshift
@@ -42,14 +42,48 @@ resources:
         NodeType: dc2.large
         ClusterType: single-node
         PubliclyAccessible: false
+    PublicClusterSubnetGroup:
+      Type: "AWS::Redshift::ClusterSubnetGroup"
+      Properties:
+        Description: Public Cluster Subnet Group
+        SubnetIds:
+          Fn::Split:
+            - ","
+            - Fn::ImportValue: !Sub ${ServiceName}-vpc-PublicSubnets
+        Tags:
+          - Key: Name
+            Value: public-subnet
+    PublicCluster:
+      Type: "AWS::Redshift::Cluster"
+      Properties:
+        ClusterIdentifier: test-data-sync-redshift-public
+        ClusterSubnetGroupName: !Ref PublicClusterSubnetGroup
+        VpcSecurityGroupIds:
+          - Fn::ImportValue: !Sub ${ServiceName}-vpc-PublicRedshiftSecurityGroup
+        DBName: dev
+        MasterUsername: admin
+        MasterUserPassword: Redshift_admin_2022
+        NodeType: dc2.large
+        ClusterType: single-node
+        PubliclyAccessible: true
   Outputs:
-    RedshiftEndpoint:
+    PrivateRedshiftEndpoint:
       Description: "Redshift endpoint"
       Value: !GetAtt Cluster.Endpoint.Address
       Export:
-        Name: !Sub "${self:provider.stackName}-RedshiftEndpoint"
-    RedshiftPort:
+        Name: !Sub "${self:provider.stackName}-PrivateRedshiftEndpoint"
+    PrivateRedshiftPort:
       Description: "Redshift port"
       Value: !GetAtt Cluster.Endpoint.Port
       Export:
-        Name: !Sub "${self:provider.stackName}-RedshiftPort"
+        Name: !Sub "${self:provider.stackName}-PrivateRedshiftPort"
+    PublicRedshiftEndpoint:
+      Description: "Public Redshift endpoint"
+      Value: !GetAtt PublicCluster.Endpoint.Address
+      Export:
+        Name: !Sub "${self:provider.stackName}-PublicRedshiftEndpoint"
+    PublicRedshiftPort:
+      Description: "Public Redshift port"
+      Value: !GetAtt PublicCluster.Endpoint.Port
+      Export:
+        Name: !Sub "${self:provider.stackName}-PublicRedshiftPort"

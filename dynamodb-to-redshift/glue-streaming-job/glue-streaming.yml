@@ -84,9 +84,9 @@ resources:
               Fn::Join:
                 - ""
                 - - "jdbc:redshift://"
-                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftEndpoint
+                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-PrivateRedshiftEndpoint
                   - ":"
-                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-RedshiftPort
+                  - Fn::ImportValue: !Sub ${ServiceName}-redshift-PrivateRedshiftPort
                   - "/dev"
             JDBC_ENFORCE_SSL: false
             USERNAME: admin

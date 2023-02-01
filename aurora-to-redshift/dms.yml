@@ -1,7 +1,7 @@
 service: aurora-to-redshift-dms
 
 custom:
-  bucketNamePrefix: "bucketName"
+  bucketNamePrefix: "jessica"
 
 provider:
   name: aws

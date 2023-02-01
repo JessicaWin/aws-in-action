@@ -1,0 +1,210 @@
+service: dynamodb-to-redshift-kinesis
+
+custom:
+  bucketNamePrefix: "jessica"
+
+provider:
+  name: aws
+  region: ${opt:region, 'ap-southeast-1'}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+
+functions:
+  FirehoseTransformer:
+    handler: handler.transformData
+    name: dynamodb-to-redshift-firehose-transform-lambda
+    runtime: nodejs14.x
+    timeout: 900
+    role: !GetAtt FirehoseTransformLambdaRole.Arn
+
+resources:
+  Parameters:
+    DataStreamName:
+      Type: String
+      Default: dynamodb-table-data-stream
+    DeliveryStreamName:
+      Type: String
+      Default: dynamodb-table-delivery-stream
+    ServiceName:
+      Type: String
+      Default: dynamodb-to-redshift
+
+  Resources:
+    DataStream:
+      Type: AWS::Kinesis::Stream
+      Properties:
+        Name: !Ref DataStreamName
+        RetentionPeriodHours: 24
+        ShardCount: 1
+    TestTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: TestSyncToRedshiftWithKinesisFirehose
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        KinesisStreamSpecification:
+          StreamArn: !GetAtt DataStream.Arn
+    DynamodbKinesisS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub "com.${self:custom.bucketNamePrefix}.kinesis-s3-bucket"
+
+    DynamodbKinesisDataStreamReadPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: DynamodbKinesisDataStreamReadPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - kinesis:DescribeStream
+                - kinesis:GetShardIterator
+                - kinesis:GetRecords
+                - kinesis:DescribeStreamSummary
+                - kinesis:RegisterStreamConsumer
+              Resource:
+                - !Sub "arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/${DataStreamName}"
+
+    DynamodbKinesisDataStreamReadRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: DynamodbKinesisDataStreamReadRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - firehose.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - !Ref DynamodbKinesisDataStreamReadPolicy
+
+    DynamodbKinesisPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: DynamodbKinesisPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:ListBucketMultipartUploads
+                - s3:AbortMultipartUpload
+                - s3:PutbucketLogging
+                - s3:PutObjectVersionAcl
+                - s3:PutBucketAcl
+                - s3:PutBucketPolicy
+                - s3:ListBucket
+                - s3:GetBucketLocation
+                - s3:PutObjectAcl
+              Resource:
+                - !Sub "arn:aws:s3:::com.${self:custom.bucketNamePrefix}.kinesis-s3-bucket/*"
+            - Effect: Allow
+              Action:
+                - lambda:*
+              Resource:
+                - "*"
+
+    DynamodbKinesisDeliveryRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: DynamodbKinesisDeliveryRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - firehose.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - !Ref DynamodbKinesisPolicy
+
+    CustomerDeliverystream:
+      Type: AWS::KinesisFirehose::DeliveryStream
+      Properties:
+        DeliveryStreamName: !Ref DeliveryStreamName
+        DeliveryStreamType: KinesisStreamAsSource
+        KinesisStreamSourceConfiguration:
+          KinesisStreamARN: !GetAtt DataStream.Arn
+          RoleARN: !GetAtt DynamodbKinesisDataStreamReadRole.Arn
+        RedshiftDestinationConfiguration:
+          ClusterJDBCURL:
+            Fn::Join:
+              - ""
+              - - "jdbc:redshift://"
+                - Fn::ImportValue: !Sub ${ServiceName}-redshift-PublicRedshiftEndpoint
+                - ":"
+                - Fn::ImportValue: !Sub ${ServiceName}-redshift-PublicRedshiftPort
+                - "/dev"
+          CopyCommand:
+            CopyOptions: json 'auto' dateformat 'auto' timeformat 'auto'
+            DataTableName: test_kinesis_sync_to_redshift
+          USERNAME: admin
+          PASSWORD: Redshift_admin_2022
+          ProcessingConfiguration:
+            Enabled: true
+            Processors:
+              - Type: Lambda
+                Parameters:
+                  - ParameterName: LambdaArn
+                    ParameterValue: !GetAtt FirehoseTransformerLambdaFunction.Arn
+          RetryOptions:
+            DurationInSeconds: 600
+          RoleARN: !GetAtt DynamodbKinesisDeliveryRole.Arn
+          S3Configuration:
+            BucketARN: !GetAtt DynamodbKinesisS3Bucket.Arn
+            RoleARN: !GetAtt DynamodbKinesisDeliveryRole.Arn
+            BufferingHints:
+              IntervalInSeconds: 60
+              SizeInMBs: 5
+            Prefix: test_kinesis_sync_to_redshift/
+          CloudWatchLoggingOptions:
+            Enabled: true
+            LogGroupName:
+              !Join ["", [/aws/kinesisfirehose/, !Ref DeliveryStreamName]]
+            LogStreamName: DestinationDelivery
+
+    FirehoseTransformLambdaPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: DynamodbFirehoseTransformLambdaPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:*
+              Resource:
+                - "*"
+    FirehoseTransformLambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: DynamodbFirehoseTransformLambdaRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonRedshiftFullAccess
+          - arn:aws:iam::aws:policy/AmazonRedshiftDataFullAccess
+          - !Ref FirehoseTransformLambdaPolicy
