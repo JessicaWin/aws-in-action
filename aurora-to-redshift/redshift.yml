@@ -41,6 +41,7 @@ resources:
         MasterUserPassword: Redshift_admin_2022
         NodeType: dc2.large
         ClusterType: single-node
+        PubliclyAccessible: false
   Outputs:
     RedshiftEndpoint:
       Description: "Redshift endpoint"

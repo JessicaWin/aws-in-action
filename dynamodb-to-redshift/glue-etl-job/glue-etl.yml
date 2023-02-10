@@ -67,7 +67,6 @@ resources:
       Type: AWS::Glue::Crawler
       Properties:
         Name: "dynamodb-crawler"
-        Configuration:
         Role: !GetAtt CrawlerRole.Arn
         DatabaseName: !Ref DynamodbDatabase
         Targets:
@@ -117,13 +116,12 @@ resources:
       Type: AWS::Glue::Crawler
       Properties:
         Name: "redshift-crawler"
-        Configuration:
         Role: !GetAtt CrawlerRole.Arn
         DatabaseName: !Ref RedshiftDatabase
         Targets:
           JdbcTargets:
             - ConnectionName: !Ref GlueRedshiftConnection
-              Path: dev/public/test_sync_to_redshift
+              Path: dev/public/test_glue_etl_sync_to_redshift
         SchemaChangePolicy:
           UpdateBehavior: "UPDATE_IN_DATABASE"
           DeleteBehavior: "LOG"

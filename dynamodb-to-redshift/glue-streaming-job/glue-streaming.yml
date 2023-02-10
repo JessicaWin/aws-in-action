@@ -129,7 +129,7 @@ resources:
         Targets:
           JdbcTargets:
             - ConnectionName: !Ref GlueRedshiftConnection
-              Path: dev/public/test_kinesis_sync_to_redshift
+              Path: dev/public/test_glue_streaming_sync_to_redshift
         SchemaChangePolicy:
           UpdateBehavior: "UPDATE_IN_DATABASE"
           DeleteBehavior: "LOG"
@@ -146,7 +146,7 @@ resources:
           --TempDir: !Sub "s3://${GlueBucketName}/tmp/dynamodb-to-redshift/insert-catalog/"
           --src_kinesis_data_stream_arn: !GetAtt KinesisDataStream.Arn
           --des_glue_database_name: !Ref RedshiftDatabase
-          --des_glue_table_name: dev_public_test_kinesis_sync_to_redshift
+          --des_glue_table_name: dev_public_test_glue_streaming_sync_to_redshift
         WorkerType: G.025X
         NumberOfWorkers: 2
         GlueVersion: "3.0"
@@ -167,7 +167,7 @@ resources:
           --src_kinesis_data_stream_arn: !GetAtt KinesisDataStream.Arn
           --dst_redshift_database_name: dev
           --dst_redshift_schema_name: public
-          --dst_redshift_table_name: test_kinesis_sync_to_redshift
+          --dst_redshift_table_name: test_glue_streaming_sync_to_redshift
           --redshift_connection_name: !Ref GlueRedshiftConnection
         WorkerType: G.025X
         NumberOfWorkers: 2
@@ -189,7 +189,7 @@ resources:
           --src_kinesis_data_stream_arn: !GetAtt KinesisDataStream.Arn
           --dst_redshift_database_name: dev
           --dst_redshift_schema_name: public
-          --dst_redshift_table_name: test_kinesis_sync_to_redshift
+          --dst_redshift_table_name: test_glue_streaming_sync_to_redshift
           --redshift_connection_name: !Ref GlueRedshiftConnection
         WorkerType: G.025X
         NumberOfWorkers: 2

@@ -56,7 +56,7 @@ def processBatch(data_frame, batchId):
             mappings=[
                 ("pk.S", "string", "pk", "string"),
                 ("sk.S", "string", "sk", "string"),
-                ("value.S", "string", "value", "int"),
+                ("value.N", "string", "value", "int"),
                 ("updated_at.S", "string", "updated_at", "timestamp"),
             ],
             transformation_ctx="redshift_data_dynamic_frame",

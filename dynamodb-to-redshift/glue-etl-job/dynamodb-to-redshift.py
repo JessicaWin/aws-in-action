@@ -26,7 +26,7 @@ DynamoDBtable_node1 = glueContext.create_dynamic_frame.from_catalog(
 RedshiftCluster_node2 = glueContext.write_dynamic_frame.from_catalog(
     frame=DynamoDBtable_node1,
     database="redshift-database",
-    table_name="dev_public_test_sync_to_redshift",
+    table_name="dev_public_test_glue_etl_sync_to_redshift",
     redshift_tmp_dir=args["TempDir"],
     transformation_ctx="RedshiftCluster_node2",
 )

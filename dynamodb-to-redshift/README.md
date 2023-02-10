@@ -52,7 +52,7 @@ sls deploy -c redshift.yml
 ```
 cd glue-etl-job
 sls deploy -c glue-etl.yml
-aws s3 cp dynamodb-to-redshift.py s3://com.${self:custom.bucketNamePrefix}.glue-temp-bucket/script/
+aws s3 cp dynamodb-to-redshift.py s3://com.${bucketNamePrefix}.glue-temp-bucket/script/
 ```
 
 ## test glue etl job
@@ -62,7 +62,7 @@ aws s3 cp dynamodb-to-redshift.py s3://com.${self:custom.bucketNamePrefix}.glue-
 3. create redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client)
 
 ```
-CREATE TABLE "public"."test_sync_to_redshift"(pk varchar(200) not null, sk varchar(200) NOT NULL, primary key(pk, sk));
+CREATE TABLE "public"."test_glue_etl_sync_to_redshift"(pk varchar(200) NOT NULL, sk varchar(200) NOT NULL, value integer, updated_at timestamp without time zone, primary key(pk, sk));
 ```
 
 4. run redshift-crawler, if encounter no valid connection error, please update password in the redshift-connection manually with aws console, don't know why the password is not correct when deploy with cloudformation. After run success, you can see the database and table in [glue console](https://ap-southeast-1.console.aws.amazon.com/glue/home?region=ap-southeast-1#catalog:tab=tables)
@@ -91,9 +91,9 @@ For glue etl job, it will sync all data in the source dynamodb table to redshift
 ```
 cd glue-streaming-job
 sls deploy -c glue-streaming.yml
-aws s3 cp dynamodb-to-redshift-insert-catalog.py s3://com.${self:custom.bucketNamePrefix}.glue-streaming-temp-bucket/script/
-aws s3 cp dynamodb-to-redshift-insert-jdbc.py s3://com.${self:custom.bucketNamePrefix}.glue-streaming-temp-bucket/script/
-aws s3 cp dynamodb-to-redshift-upsert.py s3://com.${self:custom.bucketNamePrefix}.glue-streaming-temp-bucket/script/
+aws s3 cp dynamodb-to-redshift-insert-catalog.py s3://com.${bucketNamePrefix}.glue-streaming-temp-bucket/script/
+aws s3 cp dynamodb-to-redshift-insert-jdbc.py s3://com.${bucketNamePrefix}.glue-streaming-temp-bucket/script/
+aws s3 cp dynamodb-to-redshift-upsert.py s3://com.${bucketNamePrefix}.glue-streaming-temp-bucket/script/
 ```
 
 Here we creat three glue jobs:
@@ -107,7 +107,7 @@ Here we creat three glue jobs:
 1. create redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client)
 
 ```
-CREATE TABLE "public"."test_kinesis_sync_to_redshift"(pk varchar(200) NOT NULL, sk varchar(200) NOT NULL, value integer, updated_at timestamp without time zone, primary key(pk, sk));
+CREATE TABLE "public"."test_glue_streaming_sync_to_redshift"(pk varchar(200) NOT NULL, sk varchar(200) NOT NULL, value integer, updated_at timestamp without time zone, primary key(pk, sk));
 ```
 
 2. run redshift-crawler, if encounter no valid connection error, please update password in the redshift-connection manually with aws console, don;t know why the password is not correct when deploy with cloudformation. After run success, you can see the database and table in [glue console](https://ap-southeast-1.console.aws.amazon.com/glue/home?region=ap-southeast-1#catalog:tab=tables)
@@ -133,7 +133,7 @@ CREATE TABLE "public"."test_kinesis_sync_to_redshift"(pk varchar(200) NOT NULL, 
 sls deploy -c kinesis.yml
 ```
 
-## test glue streaming job
+## test kinesis firehose
 
 1. create redshift table with [Redshift query editor v2](https://ap-southeast-1.console.aws.amazon.com/sqlworkbench/home?region=ap-southeast-1#/client)
 

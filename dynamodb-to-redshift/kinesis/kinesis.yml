@@ -135,7 +135,7 @@ resources:
         ManagedPolicyArns:
           - !Ref DynamodbKinesisPolicy
 
-    CustomerDeliverystream:
+    KinesisDeliverystream:
       Type: AWS::KinesisFirehose::DeliveryStream
       Properties:
         DeliveryStreamName: !Ref DeliveryStreamName
