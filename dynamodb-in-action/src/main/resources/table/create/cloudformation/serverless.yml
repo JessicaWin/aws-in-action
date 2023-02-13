@@ -1,0 +1,92 @@
+service: jessica-dto
+                 
+provider:
+  name: aws
+  stage: develop
+  region: ap-southeast-1
+  stackName: ${self:provider.stage}-${self:service}
+
+resources:
+  Resources:
+    TestTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.stage}.TestTableCloudFormation
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+          - AttributeName: gsiOnePk
+            AttributeType: S
+          - AttributeName: gsiOneSk
+            AttributeType: S
+          - AttributeName: gsiTwoPk
+            AttributeType: S
+          - AttributeName: gsiTwoSk
+            AttributeType: S
+          - AttributeName: lsiOneSk
+            AttributeType: S
+          - AttributeName: lsiTwoSk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        BillingMode: PROVISIONED
+        LocalSecondaryIndexes:
+          - IndexName: test.lsiOne
+            KeySchema:
+              - AttributeName: pk
+                KeyType: HASH
+              - AttributeName: lsiOneSk
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: test.lsiTwo
+            KeySchema:
+              - AttributeName: pk
+                KeyType: HASH
+              - AttributeName: lsiTwoSk
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        GlobalSecondaryIndexes:
+          - IndexName: test.gsiOne
+            KeySchema:
+              - AttributeName: gsiOnePk
+                KeyType: HASH
+              - AttributeName: gsiOneSk
+                KeyType: RANGE
+            Projection:
+              ProjectionType: KEYS_ONLY
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+          - IndexName: test.gsiTwo
+            KeySchema:
+              - AttributeName: gsiTwoPk
+                KeyType: HASH
+              - AttributeName: gsiTwoSk
+                KeyType: RANGE
+            Projection:
+              ProjectionType: KEYS_ONLY
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        TimeToLiveSpecification: 
+          AttributeName: ttl
+          Enabled: true
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        SSESpecification:
+          SSEEnabled: false
+        ContributorInsightsSpecification:
+          Enabled: true
+        Tags:
+          - Key: product
+            Value: ${self:service}
