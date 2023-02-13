@@ -1,0 +1,155 @@
+service: aws-kinesis-example
+
+provider:
+  name: aws
+  region: ${opt:region, 'ap-southeast-1'}
+  stage: ${opt:stage, 'develop'}
+  stackName: ${self:provider.stage}-${self:service}
+  runtime: nodejs14.x
+  memorySize: 1024
+  versionFunctions: false
+  iam:
+    role:
+      name: ${self:provider.stage}_KinesisLambdaRole
+      managedPolicies:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+resources:
+  Parameters:
+    DeliveryStreamName:
+      Type: String
+      Default: ${self:provider.stage}-test-kinesis-delivery-stream-s3
+
+  Resources:
+    TestStream:
+      Type: AWS::Kinesis::Stream
+      Properties:
+        Name: ${self:provider.stage}-test-kinesis-data-stream
+        RetentionPeriodHours: 24
+        ShardCount: 1
+
+    S3DestinationBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub "${self:provider.stage}-test-kinesis-destination"
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders: ["*"]
+              AllowedMethods: [GET, PUT, HEAD, POST, DELETE]
+              AllowedOrigins: ["*"]
+
+    KinesisDataStreamReadPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: !Sub "${self:provider.stage}_KinesisDataStreamReadPolicy"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - kinesis:DescribeStream
+                - kinesis:PutRecord
+                - kinesis:PutRecords
+                - kinesis:GetShardIterator
+                - kinesis:GetRecords
+                - kinesis:DescribeStreamSummary
+                - kinesis:RegisterStreamConsumer
+              Resource:
+                - !Sub "arn:aws:kinesis:${AWS::Region}:${AWS::AccountId}:stream/${self:provider.stage}-test-kinesis-data-stream"
+
+    KinesisDataStreamReadRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub "${self:provider.stage}_KinesisDataStreamReadRole"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - firehose.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - !Ref KinesisDataStreamReadPolicy
+
+    KinesisDataFirehorseDeliveryPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: !Sub "${self:provider.stage}_KinesisDataFirehorseDeliveryPolicy"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - "lambda:*"
+              Resource:
+                - "*"
+
+    FirehoseExecutionS3Policy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: !Sub "${self:provider.stage}_FirehoseExecutionS3Policy"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+                - s3:ListBucketMultipartUploads
+                - s3:AbortMultipartUpload
+                - s3:PutbucketLogging
+                - s3:PutObjectVersionAcl
+                - s3:PutBucketAcl
+                - s3:PutBucketPolicy
+                - s3:ListBucket
+                - s3:GetBucketLocation
+                - s3:PutObjectAcl
+              Resource:
+                - !Sub "arn:aws:s3:::${self:provider.stage}-test-kinesis-destination/*"
+                - !Sub "arn:aws:s3:::${self:provider.stage}-test-kinesis-destination"
+
+    KinesisDataFirehorseDeliveryRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub "${self:provider.stage}_KinesisDataFirehorseDeliveryRole"
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - firehose.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - !Ref KinesisDataFirehorseDeliveryPolicy
+          - !Ref FirehoseExecutionS3Policy
+
+    Deliverystream:
+      Type: AWS::KinesisFirehose::DeliveryStream
+      Properties:
+        DeliveryStreamName: !Ref DeliveryStreamName
+        DeliveryStreamType: KinesisStreamAsSource
+        KinesisStreamSourceConfiguration:
+          KinesisStreamARN: !GetAtt TestStream.Arn
+          RoleARN: !GetAtt KinesisDataStreamReadRole.Arn
+        S3DestinationConfiguration:
+          BucketARN: !GetAtt S3DestinationBucket.Arn
+          RoleARN: !GetAtt KinesisDataFirehorseDeliveryRole.Arn
+          BufferingHints:
+            IntervalInSeconds: 60
+            SizeInMBs: 5
+          ErrorOutputPrefix: error/
+          Prefix: success/
+          CloudWatchLoggingOptions:
+            Enabled: true
+            LogGroupName:
+              !Join ["", [/aws/kinesisfirehose/, !Ref DeliveryStreamName]]
+            LogStreamName: DestinationDelivery
+
+functions:
+  KinesisDataStreamProducer:
+    handler: handler.sendDataToKinesisDataStream
+    name: ${self:provider.stage}-${self:service}-data-producer
+    environment:
+      STREAM_NAME: !Ref TestStream

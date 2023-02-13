@@ -1,0 +1,11 @@
+{
+  "name": "aws-kinesis-example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/handler.js",
+  "author": "JessicaWin",
+  "dependencies": {
+    "moment-timezone": "^0.5.23",
+    "aws-sdk": "^2.351.0"
+  }
+}
