@@ -1,0 +1,14 @@
+# Variant of each developer
+variant: jessica
+
+stage: develop
+
+# The region you will deploy your lambda to
+region: ap-southeast-1
+
+# The bucket your upload your lambda resource(Including jar) to
+deploymentBucket: ${self:provider.stage}-social-network-deploy
+
+# AWS Account ID
+ACCOUNT_ID:
+  Ref: 'AWS::AccountId'

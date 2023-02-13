@@ -1,0 +1,90 @@
+service: social-network-dynamodb
+frameworkVersion: ">=1.2.0 <2.0.0"
+custom:
+  configFile: ${file(../config.yml)}
+
+provider:
+  name: aws
+  stage: ${self:custom.configFile.stage}
+  region: ${self:custom.configFile.region}
+  variant: ${self:custom.configFile.variant}
+  stackName: ${self:provider.stage}-${self:provider.variant}-${self:service}
+  deploymentBucket: ${self:custom.configFile.deploymentBucket}
+
+resources:
+  Parameters:
+    HashKeyElementName:
+      Description: HashType PrimaryKey Name
+      Type: String
+      Default: hashKey
+      AllowedPattern: '[a-zA-Z0-9]*'
+      MinLength: '1'
+      MaxLength: '2048'
+      ConstraintDescription: must contain only alphanumberic characters
+
+    HashKeyElementType:
+      Description: HashType PrimaryKey Type
+      Type: String
+      Default: S
+      AllowedPattern: S
+      MinLength: '1'
+      MaxLength: '1'
+      ConstraintDescription: must be S
+
+    RangeKeyElementName:
+      Description: RangeType PrimaryKey Name
+      Type: String
+      Default: rangeKey
+      AllowedPattern: '[a-zA-Z0-9]*'
+      MinLength: '1'
+      MaxLength: '2048'
+      ConstraintDescription: must contain only alphanumberic characters
+
+    RangeKeyElementType:
+      Description: RangeType PrimaryKey Type
+      Type: String
+      Default: S
+      AllowedPattern: S
+      MinLength: '1'
+      MaxLength: '1'
+      ConstraintDescription: must be S
+
+    ReadCapacityUnits:
+      Description: Provisioned read throughput
+      Type: Number
+      Default: '1'
+      MinValue: '1'
+      MaxValue: '2'
+      ConstraintDescription: must be between 1 and 2
+    WriteCapacityUnits:
+      Description: Provisioned write throughput
+      Type: Number
+      Default: '1'
+      MinValue: '1'
+      MaxValue: '2'
+      ConstraintDescription: must be between 1 and 2
+
+  Resources:
+    CommonTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        TableName: ${self:provider.stage}.common
+        AttributeDefinitions:
+          - AttributeName: !Ref HashKeyElementName
+            AttributeType: !Ref HashKeyElementType
+          - AttributeName: !Ref RangeKeyElementName
+            AttributeType: !Ref RangeKeyElementType
+        KeySchema:
+          - AttributeName: !Ref HashKeyElementName
+            KeyType: HASH
+          - AttributeName: !Ref RangeKeyElementName
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: !Ref ReadCapacityUnits
+          WriteCapacityUnits: !Ref WriteCapacityUnits
+
+  # Print out the name of the table that is created
+  Outputs:
+    TableName:
+      Value: !Ref CommonTable
+      Description: Table name of the newly created DynamoDB table

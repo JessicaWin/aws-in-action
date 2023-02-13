@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.2.7.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.jessica</groupId>
+    <artifactId>social-network-serverless</artifactId>
+    <packaging>pom</packaging>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>social-network-serverless</name>
+    <description>spring boot project with aws serverless service</description>
+
+    <properties>
+        <java.version>1.8</java.version>
+    </properties>
+
+    <modules>
+        <module>social-network-serverless-web</module>
+        <module>social-network-serverless-front</module>
+        <module>social-network-serverless-service</module>
+        <module>social-network-serverless-dao</module>
+        <module>social-network-serverless-dto</module>
+        <module>social-network-serverless-common</module>
+        <module>social-network-serverless-aws</module>
+        <module>social-network-serverless-lambda</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--project modules-->
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-web</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-front</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-dao</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-dto</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-aws</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.jessica</groupId>
+                <artifactId>social-network-serverless-lambda</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!--servlet-->
+            <dependency>
+                <groupId>javax.servlet</groupId>
+                <artifactId>javax.servlet-api</artifactId>
+                <version>3.1.0</version>
+            </dependency>
+
+            <!--aws service-->
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-java-sdk-bom</artifactId>
+                <version>1.11.784</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-xray-recorder-sdk-bom</artifactId>
+                <version>2.4.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws.serverless</groupId>
+                <artifactId>aws-serverless-java-container-springboot2</artifactId>
+                <version>1.5</version>
+            </dependency>
+
+            <!--tool-->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.10</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-collections4</artifactId>
+                <version>4.4</version>
+            </dependency>
+
+            <!--swagger-->
+            <dependency>
+                <groupId>io.springfox</groupId>
+                <artifactId>springfox-swagger2</artifactId>
+                <version>2.7.0</version>
+            </dependency>
+            <dependency>
+                <groupId>io.springfox</groupId>
+                <artifactId>springfox-swagger-ui</artifactId>
+                <version>2.7.0</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

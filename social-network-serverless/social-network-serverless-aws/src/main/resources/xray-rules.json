@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "description": "User operation.",
+      "service_name": "*",
+      "http_method": "POST",
+      "url_path": "/user/*",
+      "fixed_target": 1,
+      "rate": 1.0
+    }
+  ],
+  "default": {
+    "fixed_target": 1,
+    "rate": 0.1
+  }
+}

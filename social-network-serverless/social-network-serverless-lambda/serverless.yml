@@ -1,0 +1,35 @@
+service: social-network-serverless
+frameworkVersion: ">=1.2.0 <2.0.0"
+plugins:
+  - serverless-pseudo-parameters
+
+custom:
+  configFile: ${file(../config.yml)}
+
+provider:
+  name: aws
+  stage: ${self:custom.configFile.stage}
+  variant: ${self:custom.configFile.variant}
+  runtime: java8
+  region: ${self:custom.configFile.region}
+  timeout: 30 # The default is 6 seconds. Note: API Gateway current maximum is 30 seconds
+  memorySize: 1024 # Overwrite the default memory size. Default is 1024. Increase by 64.
+  deploymentBucket: ${self:custom.configFile.deploymentBucket}
+  environment: ${file(../config.yml)}
+  stackName: ${self:provider.stage}-${self:provider.variant}-${self:service}
+  role: arn:aws:iam::#{AWS::AccountId}:role/AdminRole
+
+package:
+  artifact: target/social-network-serverless-lambda.jar
+
+functions:
+  socialNetworkServerless:
+    # name must have length less than or equal to 64
+    name: ${self:provider.stage}-${self:provider.variant}-socialNetworkServerless
+    handler: com.jessica.social.network.serverless.lambda.handler.StreamLambdaHandler
+    role: arn:aws:iam::#{AWS::AccountId}:role/AdminRole
+    events:
+      - http:
+          path: /{proxy+}
+          method: any
+    timeout: 30
