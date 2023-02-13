@@ -1,0 +1,33 @@
+# set based on docker version, refer to https://docs.docker.com/compose/compose-file/compose-file-v3/
+version: '3.6'
+
+services:
+    dev:
+        container_name: aws-fargate-example-dev
+        image: aws-fargate-example-dev:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            target: development
+            dockerfile: ./Dockerfile
+        command: npm run start
+        ports:
+            - 3000:3000
+        networks:
+            - aws-fargate-example-network
+        restart: unless-stopped
+    prod:
+        container_name: aws-fargate-example-prod
+        image: aws-fargate-example-prod:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            target: production
+            dockerfile: ./Dockerfile
+        command: npm run start:prod
+        ports:
+            - 3000:3000
+        networks:
+            - aws-fargate-example-network
+        restart: unless-stopped
+
+networks:
+    aws-fargate-example-network:

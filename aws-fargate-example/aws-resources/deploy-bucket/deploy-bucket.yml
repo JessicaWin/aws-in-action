@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cloudformation template for creating deployment related S3 buckets
+Parameters:
+  Stage:
+    Type: String
+    Default: develop
+    Description: the stage of the environment like develop, production
+
+Resources:
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub com.jessica.${Stage}-deploy-bucket
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, HEAD, POST, DELETE]
+            AllowedOrigins: ['*']
+Outputs:
+  DeploymentBucket:
+    Value: !Ref DeploymentBucket
+    Export:
+      Name: !Sub ${Stage}-deploy-bucket

@@ -1,0 +1,22 @@
+{
+    "family": "aws-fargate-example-task-definition",
+    "executionRoleArn": "executionRoleArnValue",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [ "FARGATE" ],
+    "cpu": "256",
+    "memory": "512",
+    "containerDefinitions": [
+      {
+        "name": "aws-fargate-example",
+        "image": "TO_BE_REPLACED",
+        "essential": true,
+        "portMappings": [
+          {
+            "hostPort": 3000,
+            "protocol": "tcp",
+            "containerPort": 3000
+          }
+        ]
+      }
+    ]
+  }

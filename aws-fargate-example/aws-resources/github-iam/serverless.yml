@@ -1,0 +1,82 @@
+service: aws-fargate-example-github-iam
+
+provider:
+  name: aws
+  region: ${opt:region, 'ap-southeast-1'}
+  stage: ${opt:stage, 'develop'}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.jessica.${self:provider.stage}-deploy-bucket
+    serverSideEncryption: AES256
+resources:
+  Resources:
+    GithubECSPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: GithubECSPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - ecr:BatchGetImage
+                - ecr:BatchCheckLayerAvailability
+                - ecr:CompleteLayerUpload
+                - ecr:GetDownloadUrlForLayer
+                - ecr:InitiateLayerUpload
+                - ecr:PutImage
+                - ecr:UploadLayerPart
+                - ecr:GetAuthorizationToken
+              Resource:
+                - '*'
+              Effect: Allow
+            - Action:
+                - ecs:*
+                - elasticloadbalancing:DescribeTargetGroups
+                - elasticloadbalancing:DescribeListeners
+                - elasticloadbalancing:ModifyListener
+                - elasticloadbalancing:DescribeRules
+                - elasticloadbalancing:ModifyRule
+                - lambda:InvokeFunction
+                - cloudwatch:DescribeAlarms
+                - sns:Publish
+                - s3:GetObject
+                - s3:GetObjectVersion
+              Resource:
+                - '*'
+              Effect: Allow
+            - Action:
+                - iam:PassRole
+              Resource:
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/develop_ECSTaskRole'
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:role/production_ECSTaskRole'
+              Effect: Allow
+    GitHubRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: GitHubRole
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRoleWithWebIdentity
+              Principal:
+                Federated:
+                  - !Ref GithubOidc
+              Condition:
+                StringLike:
+                  token.actions.githubusercontent.com:sub: repo:JessicaWin/aws-fargate-example:*
+        ManagedPolicyArns:
+          - !Ref GithubECSPolicy
+    GithubOidc:
+      Type: AWS::IAM::OIDCProvider
+      Properties:
+        Url: https://token.actions.githubusercontent.com
+        ClientIdList:
+          - sts.amazonaws.com
+        ThumbprintList:
+          - 6938fd4d98bab03faadb97b34396831e3780aea1
+
+  Outputs:
+    GitHubRole:
+      Value: !GetAtt GitHubRole.Arn
+      Export:
+        Name: GitHubRole

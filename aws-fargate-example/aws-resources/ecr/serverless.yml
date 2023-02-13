@@ -1,0 +1,28 @@
+service: aws-fargate-example-ecr
+
+provider:
+  name: aws
+  region: ${opt:region, 'ap-southeast-1'}
+  stage: ${opt:stage, 'develop'}
+  stackName: ${self:provider.stage}-${self:service}
+  deploymentBucket:
+    name: com.jessica.${self:provider.stage}-deploy-bucket
+    serverSideEncryption: AES256
+resources:
+  Resources:
+    NestjsstarterEcr:
+      Type: AWS::ECR::Repository
+      Properties:
+        RepositoryName: aws-fargate-example
+        RepositoryPolicyText:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                AWS:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:root
+              Action:
+                - 'ecr:ListImages'
+                - 'ecr:BatchGetImage'
+                - 'ecr:GetDownloadUrlForLayer'
+                - 'ecr:PutImage'

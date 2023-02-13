@@ -1,0 +1,70 @@
+name: Production Release & Deploy
+
+on:
+  release:
+    types: [released]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # For Staging. Build this project into docker image and push it in ECR.
+  build-release-deploy:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 300
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Replace executionRoleArn in task definition
+        env:
+          TASK_ROLE: ${{ secrets.PRODUCTION_ECS_TASK_ROLE }}
+        run: |
+          sed -i "s@executionRoleArnValue@$TASK_ROLE@g" aws-resources/ecs/aws-fargate-example-task-def.json
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: ap-northeast-1
+          role-to-assume: ${{ secrets.AWS_FEDARATED_ROLE }}
+          role-session-name: aws-fargate-example
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: aws-fargate-example
+        run: |
+          IMAGE_TAG=$(echo ${{ github.ref }} | sed -e "s#refs/tags/##g")
+          export IMAGE_TAG=$IMAGE_TAG
+          docker-compose build prod
+          docker tag aws-fargate-example-prod:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: logout from Amazon ECR
+        if: always()
+        run: docker logout $ECR_REGISTRY
+
+      # Insert Image URI in Task Definition file
+      - name: render new task definition
+        id: render-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: aws-resources/ecs/aws-fargate-example-task-def.json
+          container-name: aws-fargate-example
+          image: ${{ steps.build-image.outputs.image }}
+
+      # Update ECS task version and Deploy
+      - name: Deploy task definition to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-container.outputs.task-definition }}
+          service: aws-fargate-example
+          cluster: aws-fargate-example-cluster

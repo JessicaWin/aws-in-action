@@ -1,0 +1,119 @@
+service: aws-fargate-example-iam
+
+provider:
+  name: aws
+  region: ${opt:region, 'ap-southeast-1'}
+  stage: ${opt:stage, 'develop'}
+  stackName: ${self:provider.stage}-${self:service}
+  deploymentBucket:
+    name: com.jessica.${self:provider.stage}-deploy-bucket
+    serverSideEncryption: AES256
+resources:
+  Resources:
+    ECSPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: !Sub '${self:provider.stage}_ECSPolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - ecr:BatchGetImage
+                - ecr:BatchCheckLayerAvailability
+                - ecr:CompleteLayerUpload
+                - ecr:GetDownloadUrlForLayer
+                - ecr:InitiateLayerUpload
+                - ecr:PutImage
+                - ecr:UploadLayerPart
+                - ecr:GetAuthorizationToken
+              Resource:
+                - '*'
+              Effect: Allow
+            - Action:
+                - ecs:*
+                - elasticloadbalancing:DescribeTargetGroups
+                - elasticloadbalancing:DescribeListeners
+                - elasticloadbalancing:ModifyListener
+                - elasticloadbalancing:DescribeRules
+                - elasticloadbalancing:ModifyRule
+                - lambda:InvokeFunction
+                - cloudwatch:DescribeAlarms
+                - sns:Publish
+                - s3:GetObject
+                - s3:GetObjectVersion
+              Resource:
+                - '*'
+              Effect: Allow
+            - Action:
+                - iam:PassRole
+              Resource:
+                - !Sub 'arn:aws:iam::*:role/${self:provider.stage}_ECSTaskRole'
+              Effect: Allow
+
+    ECSTaskPolicy:
+      Type: AWS::IAM::ManagedPolicy
+      Properties:
+        ManagedPolicyName: !Sub '${self:provider.stage}_ECSTaskPolicy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Action:
+                - kinesis:*
+              Resource:
+                - '*'
+              Effect: Allow
+
+    ECSTaskRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub '${self:provider.stage}_ECSTaskRole'
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Action: sts:AssumeRole
+              Principal:
+                Service:
+                  - ecs-tasks.amazonaws.com
+        ManagedPolicyArns:
+          - !Ref ECSTaskPolicy
+          - !Ref ECSPolicy
+
+    ECSExecuteRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub '${self:provider.stage}_ECSExecuteRole'
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: ecs-tasks.amazonaws.com
+              Action: 'sts:AssumeRole'
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+
+    ECSAutoScalingRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub '${self:provider.stage}_ECSAutoScalingRole'
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: ecs-tasks.amazonaws.com
+              Action: 'sts:AssumeRole'
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole'
+  Outputs:
+    ECSExecuteRole:
+      Value: !GetAtt ECSExecuteRole.Arn
+      Export:
+        Name: ${self:provider.stage}-ECSExecuteRole
+    ECSTaskRole:
+      Value: !GetAtt ECSTaskRole.Arn
+      Export:
+        Name: ${self:provider.stage}-ECSTaskRole
+    ECSAutoScalingRole:
+      Value: !GetAtt ECSAutoScalingRole.Arn
+      Export:
+        Name: ${self:provider.stage}-ECSAutoScalingRole
