@@ -65,3 +65,9 @@ INSERT INTO person VALUES (1, 'win', 'jessica', 'sh');
 
 - run dms database migration task
 - check redshift with redshift query editor
+
+# Troubleshoot
+
+[Why is my AWS DMS task in an error status](https://aws.amazon.com/premiumsupport/knowledge-center/dms-task-error-status/#:~:text=Short%20description-,An%20AWS%20DMS%20task%20that%20is%20in%20an%20error%20status,task%20stops%20with%20fatal%20errors)
+[Why can't I see CloudWatch Logs for an AWS DMS task?](https://aws.amazon.com/premiumsupport/knowledge-center/dms-cloudwatch-logs-not-appearing/)
+[How do I turn on, access, or delete CloudWatch logs for AWS DMS?](https://aws.amazon.com/premiumsupport/knowledge-center/manage-cloudwatch-logs-dms/)
