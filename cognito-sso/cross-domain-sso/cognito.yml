@@ -1,0 +1,114 @@
+service: cognito-user-pool
+
+custom:
+  bucketNamePrefix: "jessica"
+  service1CallBackUrl: http://localhost:8080/authorize?serviceName=service1
+  service2CallBackUrl: http://localhost:8080/authorize?serviceName=service2
+
+provider:
+  name: aws
+  region: ${opt:region, "ap-southeast-1"}
+  stackName: ${self:service}
+  deploymentBucket:
+    name: com.${self:custom.bucketNamePrefix}.deploy-bucket
+    serverSideEncryption: AES256
+
+resources:
+  Resources:
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        AccountRecoverySetting:
+          RecoveryMechanisms:
+            - Name: verified_email
+              Priority: 1
+        AdminCreateUserConfig:
+          AllowAdminCreateUserOnly: true
+        AutoVerifiedAttributes:
+          - email
+        EmailConfiguration:
+          EmailSendingAccount: COGNITO_DEFAULT
+        MfaConfiguration: OFF
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireNumbers: true
+            RequireSymbols: true
+            RequireUppercase: true
+            TemporaryPasswordValidityDays: 30
+        Schema:
+          - AttributeDataType: String
+            DeveloperOnlyAttribute: false
+            Mutable: false
+            Name: email
+            Required: true
+            StringAttributeConstraints:
+              MaxLength: 50
+              MinLength: 8
+        UsernameAttributes:
+          - email
+        UsernameConfiguration:
+          CaseSensitive: true
+        UserPoolAddOns:
+          AdvancedSecurityMode: OFF
+        UserPoolName: test-cognito-user-pool
+        VerificationMessageTemplate:
+          DefaultEmailOption: CONFIRM_WITH_CODE
+    CognitoUserPoolDoamin:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: test-jessica-auth
+        UserPoolId: !Ref CognitoUserPool
+    CognitoUserPoolClient1:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 7
+        AllowedOAuthFlows:
+          - code
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthScopes:
+          - openid
+          - profile
+          - aws.cognito.signin.user.admin
+        CallbackURLs:
+          - ${self:custom.service1CallBackUrl}
+        ClientName: service1
+        DefaultRedirectURI: ${self:custom.service1CallBackUrl}
+        EnableTokenRevocation: true
+        GenerateSecret: true
+        TokenValidityUnits:
+          AccessToken: days
+          IdToken: days
+          RefreshToken: days
+        UserPoolId: !Ref CognitoUserPool
+        SupportedIdentityProviders:
+          - COGNITO
+    CognitoUserPoolClient2:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        AccessTokenValidity: 1
+        IdTokenValidity: 1
+        RefreshTokenValidity: 7
+        AllowedOAuthFlows:
+          - code
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthScopes:
+          - openid
+          - profile
+          - aws.cognito.signin.user.admin
+        CallbackURLs:
+          - ${self:custom.service2CallBackUrl}
+        ClientName: service2
+        DefaultRedirectURI: ${self:custom.service2CallBackUrl}
+        EnableTokenRevocation: true
+        GenerateSecret: true
+        TokenValidityUnits:
+          AccessToken: days
+          IdToken: days
+          RefreshToken: days
+        UserPoolId: !Ref CognitoUserPool
+        SupportedIdentityProviders:
+          - COGNITO
