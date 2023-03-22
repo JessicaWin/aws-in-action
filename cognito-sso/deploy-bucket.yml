@@ -1,0 +1,11 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  bucketNamePrefix:
+    Type: String
+    Default: jessica
+
+Resources:
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "com.${bucketNamePrefix}.deploy-bucket"
